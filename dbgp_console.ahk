@@ -1,4 +1,8 @@
-#Include F:\Documents\AutoHotkey\Drafts\dbgp.ahk
+/* DBGp console
+ *  Basic CLI debugger client for AutoHotkey_L
+ *  Requires dbgp.ahk and AutoHotkey_L
+ */
+#Include dbgp.ahk
 #Persistent
 #NoTrayIcon
 ; Do not run this script from SciTE, or any other editor that redirects console output.
@@ -51,46 +55,73 @@ ErrorMap := {0: "OK"
     , 301: "Invalid stack depth"
     , 302: "Invalid context"}
 
-; Open console output buffer:
-Console := FileOpen("CONOUT$", "rw")
-
 ; Set event callback.
-DBGP_OnBegin("DebuggerConnected")
+DBGp_OnBegin("DebuggerConnected")
+DBGp_OnStream("DebuggerStream")
 DBGp_OnEnd("DebuggerDisconnected")
 Listen:
-Console.WriteLine("*** Listening on port 9000 for a debugger connection.")
-Console.__Handle ; Flush
-ListenSocket := DBGP_StartListening()
+ConWriteLine("*** Listening on port 9000 for a debugger connection.")
+ListenSocket := DBGp_StartListening()
 return
 
 DebuggerConnected(new_session)
 {
     global
     ; We can handle only one at a time, so stop listening for now.
-    DBGP_StopListening(ListenSocket)
-    ListenSocket := 0
+    DBGp_StopListening(ListenSocket), ListenSocket := -1
     ; Start the interactive loop in a new thread.
     session := new_session
     SetTimer, Debug, -1
 }
+
+DebuggerStream(session, ByRef packet)
+{
+    if RegExMatch(packet, "<stream type=""(.*?)"">\K.*(?=</stream>)", stream)
+    {
+        ConAttrib(stream1="stdout" ? 7 : 14)
+        ConWriteLine(RegExReplace(DBGp_Base64UTF8Decode(stream),"`n$"))
+        ConAttrib(15)
+    }
+}
+
 DebuggerDisconnected()
 {
-    global session := 0
+    ; global session := 0
+}
+
+WriteResponse(session, ByRef response)
+{
+    ; Improve output formatting a little.
+    TidyPacket(response)
+    ; Display response with base64-encoded data converted back to text:
+    b := 1
+    p := 1
+    while p := RegExMatch(response, "encoding=""base64""[^>]*?>\s*\K[^<]+?(?=\s*<)", base64, p)
+    {
+        ConWrite(SubStr(response, b, p-b))
+        ConAttrib(9)
+        ConWrite(DBGp_Base64UTF8Decode(base64))
+        ConAttrib(15)
+        b := p + StrLen(base64)
+    }
+    ConWrite(SubStr(response, b) "`n`n")
 }
 
 Debug:
-Console.WriteLine("*** "
-    . "Debugging " DBGP_GetSessionFile(session) "`n"      ; path of main script file
-    . "ide_key: " DBGP_GetSessionIDEKey(session) "`n"     ; DBGP_IDEKEY env var
-    . "session: " DBGP_GetSessionCookie(session) "`n"     ; DBGP_COOKIE env var
-    . "thread id: " DBGP_GetSessionThread(session) "`n")  ; thread id of script
-Console.__Handle
+ConWriteLine("
+(C
+*** Debugging "  session.File  "  ; Path of main script file
+ide_key:    "  session.IDEKey  "  ; DBGp_IDEKEY env var
+session:    "  session.Cookie  "  ; DBGp_COOKIE env var
+thread id:  "  session.Thread  "  ; Thread id of script
+)`n")
 Loop
 {
     ; Display prompt.
-    Console.Write("> ")
-    Console.__Handle
+    ConWrite("> ")
     ; Wait for one line of input.
+    ; NOTE: The script cannot respond to messages (such as notification
+    ;       of incoming dbgp packets) while waiting for console input.
     FileReadLine, line, CONIN$, 1
     ; Support var=value
     if RegExMatch(line, "^(.+?)\s*=\s*(.*)$", m)
@@ -105,71 +136,30 @@ Loop
         command := line, args := ""
     if command = d
     {
-        Console.Write(DBGp_Base64UTF8Decode(args) "`n`n")
-        Console.__Handle
+        ConWrite(DBGp_Base64UTF8Decode(args) "`n`n")
         continue
     }
-    ; Send command to server.
-    if DBGP_Send(session, command, args) != 0
+    if DBGp(session, command, args, response) = 0
     {
-        gosub display_error
-        break
+        WriteResponse(session, response)
     }
-    Loop ; Loop to handle non-response packets.
+    else
     {
-        ; Wait for response.
-        if DBGP_Receive(session, response) != 0
-        {
-            gosub display_error
-            if el = WSAE:10054
-                break 2
-            continue 2
-        }
-        if InStr(response, "<response")
-        {
-            if stream !=
-            {
-                SetConsoleTextAttribute(15)
-                stream =
-            }
+        if session.Socket = -1 ; Disconnected.
             break
-        }
-        ; else not a response packet, so output it and repeat.
-        TidyPacket(response)
-        if RegExMatch(response, "^<stream type=""(.*?)"">\K.*(?=</stream>)", stream)
-        {
-            SetConsoleTextAttribute(stream1="stdout" ? 7 : 14)
-            response := RegExReplace(DBGp_Base64UTF8Decode(stream),"`n$")
-        }
-        Console.WriteLine(response)
+        gosub display_error
     }
-    ; Improve output formatting a little.
-    TidyPacket(response)
-    ; Display response with base64-encoded data converted back to text:
-    b := 1
-    p := 1
-    while p := RegExMatch(response, "encoding=""base64""[^>]*?>\s*\K[^<]+?(?=\s*<)", base64, p)
-    {
-        Console.Write(SubStr(response, b, p-b))
-        SetConsoleTextAttribute(9)
-        Console.Write(DBGp_Base64UTF8Decode(base64))
-        SetConsoleTextAttribute(15)
-        b := p + StrLen(base64)
-    }
-    Console.Write(SubStr(response, b) "`n`n")
-    Console.__Handle
     ; If script has stopped, listen for the next connection.
-} Until InStr(response,"status=""stopped""") || !session
-FileAppend, *** Stopped debugging.`n, CONOUT$
+} Until InStr(response,"status=""stopped""") || session.Socket = -1
+ConWriteLine("*** Stopped debugging.")
 gosub Listen
 return
 
 display_error:
 el := ErrorMap.HasKey(ErrorLevel) ? ErrorMap[ErrorLevel] : ErrorLevel
-SetConsoleTextAttribute(12)
-Console.Write("Error: " el "`n`n")
-Console.__Handle
-SetConsoleTextAttribute(15)
+ConAttrib(12)
+ConWrite("Error: " el "`n`n")
+ConAttrib(15)
 return
 
 TidyPacket(ByRef xml) {
@@ -194,7 +184,13 @@ TidyPacket(ByRef xml) {
     xml := out
 }
 
-SetConsoleTextAttribute(attrib) {
-    global Console
+ConWrite(s) {
+    FileAppend %s%, CONOUT$
+}
+ConWriteLine(s) {
+    FileAppend %s%`n, CONOUT$
+}
+ConAttrib(attrib) {
+    Console := FileOpen("CONOUT$", "rw")
     return DllCall("SetConsoleTextAttribute", "ptr", Console.__Handle, "short", attrib)
 }
