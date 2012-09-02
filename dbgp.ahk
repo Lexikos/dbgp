@@ -118,7 +118,7 @@ DBGp(session, command, args="", ByRef response="")
     
     ; If OnBreak has been set and this is a continuation command,
     ; call OnBreak when the response is received instead of waiting.
-    if InStr(" run step_into step_over step_out ", " " command " ")
+    if InStr(" run step_into step_over step_out stop ", " " command " ")
         handler := DBGp_Session.OnBreak
     else
         handler := ""
