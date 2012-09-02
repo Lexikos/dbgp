@@ -147,7 +147,7 @@ AttachScripts()
 
 DebuggerAttach(session, ByRef init)
 {
-    D("attached to " session.File ":" session.Thread)
+    ; D("attached to " session.File ":" session.Thread)
     
     ; Check if the debugger supports async mode, which is required:
     session.feature_get("-n supports_async", response)
