@@ -382,7 +382,7 @@ DBGp_HandleIncomingData(session)
         ; encoded as a null-terminated numeric string.
         
         ; Ensure the data is null-terminated.
-        NumPut(0, ptr, len, "char")
+        NumPut(0, ptr+0, len, "char")
         
         headerLen := DllCall("lstrlenA", "ptr", ptr)
         
