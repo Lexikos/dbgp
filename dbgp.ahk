@@ -372,9 +372,11 @@ DBGp_HandleIncomingData(session)
     ; Copy available data into the buffer.
     r := DllCall("ws2_32\recv", "ptr", session.Socket
                 , "ptr", ptr + len, "int", cap - len, "int", 0)
-    if r <= 0  ; -1 = error, 0 = connection has gracefully closed.
-        return r ? DBGp_WSAE() : DBGp_E("connection closed in " A_ThisFunc ", had " len " bytes")
-    session.bufLen := (len += r)
+    ; Be tolerant of errors because WSAEWOULDBLOCK is expected in some
+    ; cases, and even if some other error occurs, there may be data in
+    ; our buffer that we can try to process.
+    if (r != -1)
+        session.bufLen := (len += r)
     
     if (packetLen := session.packetLen) = ""
     {
@@ -447,6 +449,16 @@ DBGp_HandleIncomingData(session)
         session.bufLen := (len -= packetLen)
         DllCall("RtlMoveMemory", "ptr", ptr, "ptr", ptr + packetLen, "ptr", len)
         session.packetLen := ""
+        
+        if len
+        {
+            ; Post a message so this function will be called again to
+            ; process the rest of the data.  Unlike loop/goto, this
+            ; method allows data to be received and processed while one
+            ; of the handlers called below is still running.
+            DllCall("PostMessage", "ptr", DBGp_hwnd(), "uint", 0x8000
+                    , "ptr", session.Socket, "ptr", 1)
+        }
         
         ; Call the appropriate handler.
         if !RegExMatch(packet, "<\K\w+", packetType)
