@@ -172,8 +172,6 @@ _DBGp_SendEx(session, command, args, responseHandler)
     if responseHandler
         session.handlers[transaction_id] := responseHandler
 	
-    ; D("# " packet)
-    
 	if DllCall("ws2_32\send", "ptr", session.Socket, "ptr", &packetData, "int", packetLen, "int", 0) = -1
     {
         ; Remove the handler, since it is unlikely to be called. This
@@ -340,8 +338,6 @@ DBGp_HandleWindowMessage(hwnd, uMsg, wParam, lParam)
 		if s = -1
 			return 0, DBGp_WSAE()
         
-        ; D("# accept " s " from " wParam)
-		
 		; Create object to store information about this debugging session.
         session := new DBGp_Session
         session.Socket := s
@@ -358,14 +354,10 @@ DBGp_HandleWindowMessage(hwnd, uMsg, wParam, lParam)
 	else if (event = FD_CLOSE) ; Connection closed.
 	{
 		if !(session := DBGp_FindSessionBySocket(wParam))
-        {
-            ; D("- no session for socket " wParam)
             return 0
-        }
         
         DBGp_CallHandler(DBGp_Session.OnEnd, session)
         
-        ; D("# close socket " wParam)
         DBGp_RemoveSession(session), session.Socket := -1
         DllCall("ws2_32\closesocket", "ptr", wParam)
 	}
@@ -536,7 +528,6 @@ _DBGp_WaitHandler_Wait(handler, session, ByRef response)
 
 DBGp_HandleResponsePacket(session, ByRef packet)
 {
-    ; D("# " (StrLen(packet) < 1000 ? packet : SubStr(packet,1,500) " ... " SubStr(packet,-499)))
     if RegExMatch(packet, "(?<=\btransaction_id="").*?(?="")", transaction_id)
         && (handler := session.handlers.Delete(transaction_id))
     {
@@ -607,7 +598,6 @@ DBGp_WSAE(n="")
 {
 	if (n = "")
 		n := DllCall("ws2_32\WSAGetLastError")
-	; D("WSAE " n)
     if n
 		ErrorLevel=WSAE:%n%
 	else
@@ -617,7 +607,6 @@ DBGp_WSAE(n="")
 ; Internal: Sets ErrorLevel then returns an empty string or DBGp error code.
 DBGp_E(n)
 {
-    ; D("E " n)
 	ErrorLevel := n
 	if ErrorLevel is integer
 		return ErrorLevel ; Return DBGp error code.
