@@ -60,33 +60,33 @@ class DBGp_Session
 ; Start listening for debugger connections. Must be called before any debugger may connect.
 DBGp_StartListening(localAddress="127.0.0.1", localPort=9000)
 {
-	static AF_INET:=2, SOCK_STREAM:=1, IPPROTO_TCP:=6
+    static AF_INET:=2, SOCK_STREAM:=1, IPPROTO_TCP:=6
         , FD_ACCEPT:=8, FD_READ:=1, FD_CLOSE:=0x20
-	static wsaData := ""
-	if !VarSetCapacity(wsaData)
-	{   ; Initialize Winsock to version 2.2.
-		VarSetCapacity(wsaData, 402)
-		wsaError := DllCall("ws2_32\WSAStartup", "ushort", 0x202, "ptr", &wsaData)
-		if wsaError
-			return DBGp_WSAE(wsaError)
-	}
-	; Create socket to be used to listen for connections.
-	s := DllCall("ws2_32\socket", "int", AF_INET, "int", SOCK_STREAM, "int", IPPROTO_TCP, "ptr")
-	if s = -1
-		return DBGp_WSAE()
-	; Bind to specific local interface, or any/all.
-	VarSetCapacity(sockaddr_in, 16, 0)
-	NumPut(AF_INET, sockaddr_in, 0, "ushort")
-	NumPut(DllCall("ws2_32\htons", "ushort", localPort, "ushort"), sockaddr_in, 2, "ushort")
-	NumPut(DllCall("ws2_32\inet_addr", "astr", localAddress), sockaddr_in, 4)
-	if DllCall("ws2_32\bind", "ptr", s, "ptr", &sockaddr_in, "int", 16) = 0 ; no error
-		; Request window message-based notification of network events.
-		&& DllCall("ws2_32\WSAAsyncSelect", "ptr", s, "ptr", DBGp_hwnd(), "uint", 0x8000, "int", FD_ACCEPT|FD_READ|FD_CLOSE) = 0 ; no error
-		&& DllCall("ws2_32\listen", "ptr", s, "int", 4) = 0 ; no error
-			return s
-	; An error occurred.
-	DllCall("ws2_32\closesocket", "ptr", s)
-	return DBGp_WSAE()
+    static wsaData := ""
+    if !VarSetCapacity(wsaData)
+    {   ; Initialize Winsock to version 2.2.
+        VarSetCapacity(wsaData, 402)
+        wsaError := DllCall("ws2_32\WSAStartup", "ushort", 0x202, "ptr", &wsaData)
+        if wsaError
+            return DBGp_WSAE(wsaError)
+    }
+    ; Create socket to be used to listen for connections.
+    s := DllCall("ws2_32\socket", "int", AF_INET, "int", SOCK_STREAM, "int", IPPROTO_TCP, "ptr")
+    if s = -1
+        return DBGp_WSAE()
+    ; Bind to specific local interface, or any/all.
+    VarSetCapacity(sockaddr_in, 16, 0)
+    NumPut(AF_INET, sockaddr_in, 0, "ushort")
+    NumPut(DllCall("ws2_32\htons", "ushort", localPort, "ushort"), sockaddr_in, 2, "ushort")
+    NumPut(DllCall("ws2_32\inet_addr", "astr", localAddress), sockaddr_in, 4)
+    if DllCall("ws2_32\bind", "ptr", s, "ptr", &sockaddr_in, "int", 16) = 0 ; no error
+        ; Request window message-based notification of network events.
+        && DllCall("ws2_32\WSAAsyncSelect", "ptr", s, "ptr", DBGp_hwnd(), "uint", 0x8000, "int", FD_ACCEPT|FD_READ|FD_CLOSE) = 0 ; no error
+        && DllCall("ws2_32\listen", "ptr", s, "int", 4) = 0 ; no error
+            return s
+    ; An error occurred.
+    DllCall("ws2_32\closesocket", "ptr", s)
+    return DBGp_WSAE()
 }
 
 ; Set the function to be called when a debugger connection is accepted.
@@ -120,7 +120,7 @@ DBGp_OnEnd(fn)
 ; Stops listening for debugger connections. Does not disconnect debuggers, but prevents more debuggers from connecting.
 DBGp_StopListening(socket)
 {
-	return DllCall("ws2_32\closesocket", "ptr", socket) = -1 ? DBGp_WSAE() : 0
+    return DllCall("ws2_32\closesocket", "ptr", socket) = -1 ? DBGp_WSAE() : 0
 }
 
 ; Execute a DBGp command.
@@ -137,15 +137,15 @@ DBGp(session, command, args="", ByRef response="")
         handler := new DBGp_Session.WaitHandler
     
     if (r := _DBGp_SendEx(session, command, args, handler)) = 0
-	{
+    {
         if wait
         {
             handler.cmd := command ;dbg
             ; Wait for and return a response.
             r := _DBGp_WaitHandler_Wait(handler, session, response)
         }
-	}
-	return r
+    }
+    return r
 }
 
 ; Send a command.
@@ -158,29 +158,29 @@ DBGp_Send(session, command, args="", responseHandler="")
 
 _DBGp_SendEx(session, command, args, responseHandler)
 {
-	; Format command line (insert -i transaction_id).
-	transaction_id := ++session.lastID
-	packet := command " -i " transaction_id
-	if (args != "")
-		packet .= " " args
+    ; Format command line (insert -i transaction_id).
+    transaction_id := ++session.lastID
+    packet := command " -i " transaction_id
+    if (args != "")
+        packet .= " " args
     
     ; Convert to UTF-8 (regardless of ANSI vs Unicode).
     VarSetCapacity(packetData, packetLen := StrPut(packet, "UTF-8"))
     StrPut(packet, &packetData, "UTF-8")
-	
+    
     ; Set the handler first to avoid a possible race condition.
     if responseHandler
         session.handlers[transaction_id] := responseHandler
-	
-	if DllCall("ws2_32\send", "ptr", session.Socket, "ptr", &packetData, "int", packetLen, "int", 0) = -1
+    
+    if DllCall("ws2_32\send", "ptr", session.Socket, "ptr", &packetData, "int", packetLen, "int", 0) = -1
     {
         ; Remove the handler, since it is unlikely to be called. This
         ; may be unnecessary since it's likely the session is ending.
         if responseHandler
             session.handlers.Delete(transaction_id)
-		return DBGp_WSAE()
+        return DBGp_WSAE()
     }
-	return 0
+    return 0
 }
 
 ; Retrieve the next <response/>.
@@ -194,7 +194,7 @@ DBGp_Receive(session, ByRef packet)
 
 DBGp_GetSessionSocket(session)
 {
-	return session.Socket
+    return session.Socket
 }
 
 DBGp_GetSessionIDEKey(session)
@@ -204,22 +204,22 @@ DBGp_GetSessionIDEKey(session)
 
 DBGp_GetSessionCookie(session)
 {
-	return session.Cookie
+    return session.Cookie
 }
 
 DBGp_GetSessionThread(session)
 {
-	return session.Thread
+    return session.Thread
 }
 
 DBGp_GetSessionFile(session)
 {
-	return session.File
+    return session.File
 }
 
 DBGp_CloseSession(session)
 {
-	return DllCall("ws2_32\closesocket", "ptr", session.Socket) = -1 ? DBGp_WSAE() : 0
+    return DllCall("ws2_32\closesocket", "ptr", session.Socket) = -1 ? DBGp_WSAE() : 0
 }
 
 
@@ -236,7 +236,7 @@ DBGp_Base64UTF8Encode(ByRef textdata) {
     if (textdata = "")
         return
     VarSetCapacity(rawdata, StrPut(textdata, "utf-8")), sz := StrPut(textdata, &rawdata, "utf-8") - 1
-	return DBGp_BinaryToString(rawdata, sz, 0x40000001)
+    return DBGp_BinaryToString(rawdata, sz, 0x40000001)
 }
 
 ;http://www.autohotkey.com/forum/viewtopic.php?p=238120#238120
@@ -261,51 +261,51 @@ DBGp_EncodeFileURI(s)
     len := DllCall("GetFullPathName", "str", s, "uint", 0, "ptr", 0, "ptr", 0)
     VarSetCapacity(buf, len*2)
     DllCall("GetFullPathName", "str", s, "uint", len, "str", buf, "ptr", 0)
-	s := StrReplace(StrReplace(s, "\", "/"), "%", "%25")
-	VarSetCapacity(h, 4)
+    s := StrReplace(StrReplace(s, "\", "/"), "%", "%25")
+    VarSetCapacity(h, 4)
     regex := (A_AhkVersion >= "2." ? "" : "O)") "[^\w\-.!~*'()/%]"
-	while RegExMatch(s, regex, c)
-	{
-		StrPut(c[0], &h, "UTF-8")
-		r := ""
-		while n := NumGet(h, A_Index-1, "UChar")
+    while RegExMatch(s, regex, c)
+    {
+        StrPut(c[0], &h, "UTF-8")
+        r := ""
+        while n := NumGet(h, A_Index-1, "UChar")
             r .= Format("%{:02X}", n)
         s := StrReplace(s, c[0], r)
-	}
-	return s
+    }
+    return s
 }
 
 ; Convert URI to file path
 ; Rewritten by fincs to support Unicode paths
 DBGp_DecodeFileURI(s)
 {
-	if SubStr(s, 1, 8) = "file:///"
-		s := SubStr(s, 9)
-	s := StrReplace(s, "/", "\")
-	
-	VarSetCapacity(buf, StrLen(s)+1)
-	i := 0, o := 0
-	while i <= StrLen(s)
-	{
-		c := NumGet(s, i * (A_IsUnicode ? 2 : 1), A_IsUnicode ? "UShort" : "UChar")
-		if (c = Ord("%"))
-			c := "0x" SubStr(s, i+2, 2), i += 2
-		NumPut(c, buf, o, "UChar")
-		i++, o++
-	}
-	return StrGet(&buf, "UTF-8")
+    if SubStr(s, 1, 8) = "file:///"
+        s := SubStr(s, 9)
+    s := StrReplace(s, "/", "\")
+    
+    VarSetCapacity(buf, StrLen(s)+1)
+    i := 0, o := 0
+    while i <= StrLen(s)
+    {
+        c := NumGet(s, i * (A_IsUnicode ? 2 : 1), A_IsUnicode ? "UShort" : "UChar")
+        if (c = Ord("%"))
+            c := "0x" SubStr(s, i+2, 2), i += 2
+        NumPut(c, buf, o, "UChar")
+        i++, o++
+    }
+    return StrGet(&buf, "UTF-8")
 }
 
 ; Replace XML entities with the appropriate characters.
 DBGp_DecodeXmlEntities(s)
 {
-	; Replace XML entities which may be returned by AutoHotkey_L (e.g. in ide_key attribute of init packet if DBGp_IDEKEY env var contains one of "&'<>).
-	s := StrReplace(s, "&quot;", Chr(34))
-	s := StrReplace(s, "&amp;", "&")
-	s := StrReplace(s, "&apos;", "'")
-	s := StrReplace(s, "&lt;", "<")
-	s := StrReplace(s, "&gt;", ">")
-	return s
+    ; Replace XML entities which may be returned by AutoHotkey_L (e.g. in ide_key attribute of init packet if DBGp_IDEKEY env var contains one of "&'<>).
+    s := StrReplace(s, "&quot;", Chr(34))
+    s := StrReplace(s, "&amp;", "&")
+    s := StrReplace(s, "&apos;", "'")
+    s := StrReplace(s, "&lt;", "<")
+    s := StrReplace(s, "&gt;", ">")
+    return s
 }
 
 
@@ -314,56 +314,56 @@ DBGp_DecodeXmlEntities(s)
 ; Internal: Window procedure for handling WSAAsyncSelect notifications.
 DBGp_HandleWindowMessage(hwnd, uMsg, wParam, lParam)
 {
-	static FD_ACCEPT:=8, FD_READ:=1, FD_CLOSE:=0x20
+    static FD_ACCEPT:=8, FD_READ:=1, FD_CLOSE:=0x20
     
     ; Must not be interrupted by FD_READ while processing FD_ACCEPT
     ; (e.g. setting up the session which FD_READ may be received for)
     ; or FD_READ (still processing previous data).
     Critical 10000
 
-	uMsg &= 0xFFFFFFFF
-	
-	if uMsg != 0x8000
-		return DllCall("DefWindowProc", "ptr", hwnd, "uint", uMsg, "ptr", wParam, "ptr", lParam)
-	
-	event := lParam & 0xffff
-	; error := (lParam >> 16) & 0xffff
+    uMsg &= 0xFFFFFFFF
     
-	if (event = FD_ACCEPT)
-	{
-		; Accept incoming connection.
-		s := DllCall("ws2_32\accept", "ptr", wParam, "uint", 0, "uint", 0, "ptr")
-		if s = -1
+    if uMsg != 0x8000
+        return DllCall("DefWindowProc", "ptr", hwnd, "uint", uMsg, "ptr", wParam, "ptr", lParam)
+    
+    event := lParam & 0xffff
+    ; error := (lParam >> 16) & 0xffff
+    
+    if (event = FD_ACCEPT)
+    {
+        ; Accept incoming connection.
+        s := DllCall("ws2_32\accept", "ptr", wParam, "uint", 0, "uint", 0, "ptr")
+        if s = -1
         {
             DBGp_WSAE()
             return 0
         }
         
-		; Create object to store information about this debugging session.
+        ; Create object to store information about this debugging session.
         session := new DBGp_Session
         session.Socket := s
-		
+        
         DBGp_AddSession(session)
-	}
-	else if (event = FD_READ) ; Receiving data.
-	{
-		if !(session := DBGp_FindSessionBySocket(wParam))
-			return 0
+    }
+    else if (event = FD_READ) ; Receiving data.
+    {
+        if !(session := DBGp_FindSessionBySocket(wParam))
+            return 0
         
         DBGp_HandleIncomingData(session)
-	}
-	else if (event = FD_CLOSE) ; Connection closed.
-	{
-		if !(session := DBGp_FindSessionBySocket(wParam))
+    }
+    else if (event = FD_CLOSE) ; Connection closed.
+    {
+        if !(session := DBGp_FindSessionBySocket(wParam))
             return 0
         
         DBGp_CallHandler(DBGp_Session.OnEnd, session)
         
         DBGp_RemoveSession(session), session.Socket := -1
         DllCall("ws2_32\closesocket", "ptr", wParam)
-	}
-	
-	return 0
+    }
+    
+    return 0
 }
 
 DBGp_HandleIncomingData(session)
@@ -585,31 +585,31 @@ DBGp_FindSessionBySocket(socket)
 ; Internal: Creates or returns a handle to a window which can be used for window message-based notifications.
 DBGp_hwnd()
 {
-	static hwnd := 0
-	if !hwnd
-	{
-		hwnd := DllCall("CreateWindowEx", "uint", 0, "str", "Static", "str", "ahkDBGpMsgWin", "uint", 0, "int", 0, "int", 0, "int", 0, "int", 0, "ptr", 0, "ptr", 0, "ptr", 0, "ptr", 0, "ptr")
-		DllCall((A_PtrSize=4)?"SetWindowLong":"SetWindowLongPtr", "ptr", hwnd, "int", -4, "ptr", RegisterCallback("DBGp_HandleWindowMessage"))
-	}
-	return hwnd
+    static hwnd := 0
+    if !hwnd
+    {
+        hwnd := DllCall("CreateWindowEx", "uint", 0, "str", "Static", "str", "ahkDBGpMsgWin", "uint", 0, "int", 0, "int", 0, "int", 0, "int", 0, "ptr", 0, "ptr", 0, "ptr", 0, "ptr", 0, "ptr")
+        DllCall((A_PtrSize=4)?"SetWindowLong":"SetWindowLongPtr", "ptr", hwnd, "int", -4, "ptr", RegisterCallback("DBGp_HandleWindowMessage"))
+    }
+    return hwnd
 }
 
 ; Internal: Sets ErrorLevel to WSAE:<Winsock error code> then returns an empty string.
 DBGp_WSAE(n="")
 {
-	if (n = "")
-		n := DllCall("ws2_32\WSAGetLastError")
+    if (n = "")
+        n := DllCall("ws2_32\WSAGetLastError")
     if n
-		ErrorLevel := "WSAE:" n
-	else
-		ErrorLevel := 0
+        ErrorLevel := "WSAE:" n
+    else
+        ErrorLevel := 0
 }
 
 ; Internal: Sets ErrorLevel then returns an empty string or DBGp error code.
 DBGp_E(n)
 {
-	ErrorLevel := n
-	if ErrorLevel is integer
-		return ErrorLevel ; Return DBGp error code.
-	; Empty/no return value indicates an internal/protocol error.
+    ErrorLevel := n
+    if ErrorLevel is integer
+        return ErrorLevel ; Return DBGp error code.
+    ; Empty/no return value indicates an internal/protocol error.
 }
