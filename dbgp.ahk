@@ -258,22 +258,20 @@ DBGp_StringToBinary(ByRef bin, hex, fmt=12) {    ; return length, result in bin
 ; Rewritten by fincs to support Unicode paths
 DBGp_EncodeFileURI(s)
 {
-	Loop, %s%, 0
-		s := A_LoopFileLongPath
-	StringReplace, s, s, \, /, All
-	StringReplace, s, s, `%, `%25, All
+    len := DllCall("GetFullPathName", "str", s, "uint", 0, "ptr", 0, "ptr", 0)
+    VarSetCapacity(buf, len*2)
+    DllCall("GetFullPathName", "str", s, "uint", len, "str", buf, "ptr", 0)
+	s := StrReplace(StrReplace(s, "\", "/"), "%", "%25")
 	VarSetCapacity(h, 4)
-	f := A_FormatInteger
-	SetFormat, IntegerFast, Hex
-	while RegExMatch(s, "[^\w\-.!~*'()/%]", c)
+    regex := (A_AhkVersion >= "2." ? "" : "O)") "[^\w\-.!~*'()/%]"
+	while RegExMatch(s, regex, c)
 	{
-		StrPut(c, &h, "UTF-8")
-		r =
+		StrPut(c[0], &h, "UTF-8")
+		r := ""
 		while n := NumGet(h, A_Index-1, "UChar")
-            r .= "%" SubStr("0" SubStr(n, 3), -1)
-		StringReplace, s, s, % c, % r, All
+            r .= Format("%{:02X}", n)
+        s := StrReplace(s, c[0], r)
 	}
-	SetFormat, IntegerFast, %f%
 	return s
 }
 
@@ -283,14 +281,14 @@ DBGp_DecodeFileURI(s)
 {
 	if SubStr(s, 1, 8) = "file:///"
 		s := SubStr(s, 9)
-	StringReplace, s, s, /, \, All
+	s := StrReplace(s, "/", "\")
 	
 	VarSetCapacity(buf, StrLen(s)+1)
 	i := 0, o := 0
 	while i <= StrLen(s)
 	{
 		c := NumGet(s, i * (A_IsUnicode ? 2 : 1), A_IsUnicode ? "UShort" : "UChar")
-		if (c = Asc("%"))
+		if (c = Ord("%"))
 			c := "0x" SubStr(s, i+2, 2), i += 2
 		NumPut(c, buf, o, "UChar")
 		i++, o++
@@ -302,11 +300,11 @@ DBGp_DecodeFileURI(s)
 DBGp_DecodeXmlEntities(s)
 {
 	; Replace XML entities which may be returned by AutoHotkey_L (e.g. in ide_key attribute of init packet if DBGp_IDEKEY env var contains one of "&'<>).
-	StringReplace, s, s, &quot;, ", All
-	StringReplace, s, s, &amp;, &, All
-	StringReplace, s, s, &apos;, ', All
-	StringReplace, s, s, &lt;, <, All
-	StringReplace, s, s, &gt;, >, All
+	s := StrReplace(s, "&quot;", Chr(34))
+	s := StrReplace(s, "&amp;", "&")
+	s := StrReplace(s, "&apos;", "'")
+	s := StrReplace(s, "&lt;", "<")
+	s := StrReplace(s, "&gt;", ">")
 	return s
 }
 
@@ -336,7 +334,10 @@ DBGp_HandleWindowMessage(hwnd, uMsg, wParam, lParam)
 		; Accept incoming connection.
 		s := DllCall("ws2_32\accept", "ptr", wParam, "uint", 0, "uint", 0, "ptr")
 		if s = -1
-			return 0, DBGp_WSAE()
+        {
+            DBGp_WSAE()
+            return 0
+        }
         
 		; Create object to store information about this debugging session.
         session := new DBGp_Session
@@ -599,9 +600,9 @@ DBGp_WSAE(n="")
 	if (n = "")
 		n := DllCall("ws2_32\WSAGetLastError")
     if n
-		ErrorLevel=WSAE:%n%
+		ErrorLevel := "WSAE:" n
 	else
-		ErrorLevel=0
+		ErrorLevel := 0
 }
 
 ; Internal: Sets ErrorLevel then returns an empty string or DBGp error code.
