@@ -124,7 +124,7 @@ Loop
     ;       of incoming dbgp packets) while waiting for console input.
     FileReadLine, line, CONIN$, 1
     ; Split the command and args.
-    if RegExMatch(line, "s)^(\w+)(?: +(-.*))?$", m)
+    if RegExMatch(line, "s)^(\w+)(?: +(?!=)(.*))?$", m)
         command := m1, args := m2
     else
     {   ; Support var=value
@@ -137,6 +137,11 @@ Loop
     if command = d
     {
         ConWrite(DBGp_Base64UTF8Decode(args) "`n`n")
+        continue
+    }
+    if command = e
+    {
+        ConWrite(DBGp_Base64UTF8Encode(args) "`n`n")
         continue
     }
     if DBGp(session, command, args, response) = 0
