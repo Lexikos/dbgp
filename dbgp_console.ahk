@@ -80,7 +80,7 @@ DebuggerStream(session, ByRef packet)
     {
         ConAttrib(stream1="stdout" ? 7 : 14)
         ConWriteLine(RegExReplace(DBGp_Base64UTF8Decode(stream),"`n$"))
-        ConAttrib(15)
+        ConAttrib(7)
     }
 }
 
@@ -101,7 +101,7 @@ WriteResponse(session, ByRef response)
         ConWrite(SubStr(response, b, p-b))
         ConAttrib(9)
         ConWrite(DBGp_Base64UTF8Decode(base64))
-        ConAttrib(15)
+        ConAttrib(7)
         b := p + StrLen(base64)
     }
     ConWrite(SubStr(response, b) "`n`n")
@@ -159,7 +159,7 @@ display_error:
 el := ErrorMap.HasKey(ErrorLevel) ? ErrorMap[ErrorLevel] : ErrorLevel
 ConAttrib(12)
 ConWrite("Error: " el "`n`n")
-ConAttrib(15)
+ConAttrib(7)
 return
 
 TidyPacket(ByRef xml) {
