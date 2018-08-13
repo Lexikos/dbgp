@@ -123,17 +123,17 @@ Loop
     ; NOTE: The script cannot respond to messages (such as notification
     ;       of incoming dbgp packets) while waiting for console input.
     FileReadLine, line, CONIN$, 1
-    ; Support var=value
-    if RegExMatch(line, "^(.+?)\s*=\s*(.*)$", m)
-        line := "property_set -n " m1 " -- " DBGp_Base64UTF8Encode(m2)
-    ; Support ?var
-    else if SubStr(line,1,1)="?"
-        line := "property_get -n " RegExReplace(line,"^\?\s*")
     ; Split the command and args.
-    if delim := InStr(line," ")
-        command := SubStr(line,1,delim-1), args := SubStr(line,delim+1)
+    if RegExMatch(line, "s)^(\w+)(?: +(-.*))?$", m)
+        command := m1, args := m2
     else
-        command := line, args := ""
+    {   ; Support var=value
+        if RegExMatch(line, "^(.+?)\s*=\s*(.*)$", m)
+            command := "property_set", args := "-n " m1 " -- " DBGp_Base64UTF8Encode(m2)
+        ; Support ?var
+        else if SubStr(line,1,1)="?"
+            command := "property_get", args := "-n " RegExReplace(line,"^\?\s*")
+    }
     if command = d
     {
         ConWrite(DBGp_Base64UTF8Decode(args) "`n`n")
