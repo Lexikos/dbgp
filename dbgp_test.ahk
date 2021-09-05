@@ -19,7 +19,6 @@ DBGp_OnEnd("TDebuggerDisconnected")
 
 ; Start listening for connections.
 DBGp_StartListening()
-================================================================================
 Out("
 (
 Launch a script with the /Debug switch to begin.  For example:

@@ -2,7 +2,7 @@
  *  Basic CLI debugger client for AutoHotkey_L
  *  Requires dbgp.ahk and AutoHotkey_L
  */
-#Include dbgp.ahk
+#Include %A_ScriptDir%\dbgp.ahk
 #Persistent
 #NoTrayIcon
 ; Do not run this script from SciTE, or any other editor that redirects console output.
@@ -133,6 +133,8 @@ Loop
         ; Support ?var
         else if SubStr(line,1,1)="?"
             command := "property_get", args := "-n " RegExReplace(line,"^\?\s*")
+        else
+            command := line, args := ""
     }
     if command = d
     {
