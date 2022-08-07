@@ -1,71 +1,64 @@
 ﻿/* DBGp test script
  *  Demonstrates async support and variable retrieval.
- *  Requires dbgp.ahk and AutoHotkey_L v1.1.09+
  */
+#Requires AutoHotkey v2.0-beta.7
 #Include dbgp.ahk
-#Persistent
-#NoEnv
-#Warn
+Persistent
 
-DetectHiddenWindows On
+DetectHiddenWindows true
 SetTitleMatchMode 2
 
-global listen_port := 9001
-global current_view := ""
-global attached := {}
-global sessions := {}
+listen_port := 9001
+current_view := ""
+attached := Map()
+sessions := Map(), sessions.CaseSense := "off"
 
-OnMessage(0x111, "WM_COMMAND", 10)
+OnMessage(0x111, WM_COMMAND, 10)
 OnExit Exiting
 
-DBGp_OnBegin("DebuggerAttach")
-DBGp_OnBreak("DebuggerBreak")
-DBGp_OnEnd("DebuggerDetach")
+DBGp_OnBegin(DebuggerAttach)
+DBGp_OnBreak(DebuggerBreak)
+DBGp_OnEnd(DebuggerDetach)
 DBGp_StartListening( , listen_port)
 
 SetView("Variables")
 
-return
-
-Exiting:
-OnExit              ; Allow subsequent ExitApp to exit the script.
-SetTimer Exit, -10  ; Start a separate thread to allow interruption.
-return
-Exit:
-Disconnect()
-ExitApp
+Exiting(*)
+{
+    OnExit Exiting, false
+    SetTimer Disconnect, -10  ; Start a separate thread to allow interruption.
+    return true
+}
 
 Disconnect()
 {
     ; Clone() since sessions might be removed while we're looping.
-    for _, session in sessions.Clone()
+    for , session in sessions.Clone()
         session.detach()
+    ExitApp
 }
 
-WM_COMMAND(wParam, lParam)
+WM_COMMAND(wParam, lParam, *)
 {
-    static view := {
-    (Join,
-        65406: "Lines"
-        65407: "Variables"
-        65408: "Hotkeys"
-        65409: "KeyHistory"
-    )}
-    if (wParam = 65410) ; Refresh
-        return Refresh()
-    if view[wParam]
-        return SetView(view[wParam])
+    switch wParam
+    {
+        case 65406: SetView "Lines"
+        case 65407: SetView "Variables"
+        case 65408: SetView "Hotkeys"
+        case 65409: SetView "KeyHistory"
+        case 65410: Refresh
+    }
 }
 
 SetView(view)
 {
-    current_view := view
-    return Refresh()
+    global current_view := view
+    Refresh
 }
 
 SetText(text)
 {
-    ControlSetText Edit1, %text%, ahk_id %A_ScriptHwnd%
+    ControlSetText text, 'Edit1', A_ScriptHwnd
 }
 
 Refresh()
@@ -76,23 +69,23 @@ Refresh()
     AttachScripts()
     
     ; Set up an MSXML document for parsing the responses.
-    doc := ComObjCreate("MSXML2.DOMDocument")
+    doc := ComObject("MSXML2.DOMDocument")
     doc.async := false
     doc.setProperty("SelectionLanguage", "XPath")
     
     s := ""
     
-    for _, session in sessions.Clone()
+    for , session in sessions.Clone()
     {
         s .= session.File ":" session.Thread
         . "`n============================================================`n"
         
-        session.context_get("-c 1", response)
+        response := session.context_get("-c 1")
         
         doc.loadXML(response)
         
         nodes := doc.selectNodes("/response/property")
-        Loop % nodes.length
+        Loop nodes.length
         {
             prop := nodes.item[A_Index-1]
             name := prop.getAttribute("fullname")
@@ -121,40 +114,41 @@ Refresh()
         s .= "`n`n"
     }
     
-    StringReplace s, s, `n, `r`n, All
-    SetText(s)
-    WinShow ahk_id %A_ScriptHwnd%
-    WinActivate ahk_id %A_ScriptHwnd%
+    SetText(StrReplace(s, "`n", "`r`n"))
+    WinShow A_ScriptHwnd
+    WinActivate A_ScriptHwnd
 }
 
 AttachScripts()
 {
     static attach_msg := DllCall("RegisterWindowMessage", "str", "AHK_ATTACH_DEBUGGER")
-    WinGet w, List, - AutoHotkey ahk_class AutoHotkey,, %A_ScriptFullPath%
-    Loop % w
+    count := attached.Count
+    for hwnd in WinGetList("- AutoHotkey ahk_class AutoHotkey",, A_ScriptFullPath)
     {
-        hwnd := w%A_Index%
         thread := DllCall("GetWindowThreadProcessId", "ptr", hwnd, "ptr", 0, "uint")
-        if attached[thread]
-            continue
-        PostMessage attach_msg, , listen_port,, ahk_id %hwnd%
+        if !attached.Has(thread)
+            try
+            {
+                PostMessage attach_msg, , listen_port,, hwnd  ; May fail due to UAC (admin or run with UI access).
+                count++
+            }
     }
     ; Wait up to 500ms for all scripts to attach.
     t := A_TickCount
-    while w && attached.MaxIndex() < w && (A_TickCount-t < 500)
+    while attached.Count < count && (A_TickCount-t < 500)
         Sleep 10
 }
 
-DebuggerAttach(session, ByRef init)
+DebuggerAttach(session, init)
 {
     ; D("attached to " session.File ":" session.Thread)
     
     ; Check if the debugger supports async mode, which is required:
-    session.feature_get("-n supports_async", response)
+    response := session.feature_get("-n supports_async")
     if !InStr(response, ">1<")
     {
         session.detach()
-        MsgBox % "The following script is running on an outdated "
+        MsgBox "The following script is running on an outdated "
             . "version of AutoHotkey_L and therefore can't be used with "
             . "this script:`n`n" session.File
         return
@@ -178,11 +172,11 @@ DebuggerAttach(session, ByRef init)
 DebuggerDetach(session)
 {
     ; D("detached from " session.File ":" session.Thread)
-    attached.Remove(session.Thread)
-    sessions.Remove(session.File ":" session.Thread)
+    attached.Delete(session.Thread)
+    sessions.Delete(session.File ":" session.Thread)
 }
 
-DebuggerBreak()
+DebuggerBreak(*)
 {
     ; We don't need to actually do anything here; the callback just has
     ; to be set so that DBGp() doesn't wait for a response when we call
