@@ -227,7 +227,7 @@ DBGp_Base64UTF8Encode(textdata) {
 DBGp_BinaryToString(bin, sz:=bin.size, fmt:=12) {   ; return base64 or formatted-hex
    DllCall("Crypt32.dll\CryptBinaryToString", "ptr",bin, "uint",sz, "uint",fmt, "ptr",0, "uint*",&cp:=0) ; get size
    str := Buffer(cp*2)
-   DllCall("Crypt32.dll\CryptBinaryToString", "ptr",bin, "uint",sz, "uint",fmt, "str",str, "uint*",&cp)
+   DllCall("Crypt32.dll\CryptBinaryToString", "ptr",bin, "uint",sz, "uint",fmt, "ptr",str, "uint*",&cp)
    return StrGet(str, cp)
 }
 DBGp_StringToBinary(str, fmt:=12) {    ; return length, result in bin
