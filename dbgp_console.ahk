@@ -148,7 +148,7 @@ Debug()
             if session.Socket = -1 ; Disconnected.
                 break
             ConAttrib(12)
-            ConWrite(Type(e) ": " (e is DbgpError ? ErrorMap.Get(e.Extra, e.Extra) : e.Message) "`n`n")
+            ConWrite(Type(e) ": " (e is DbgpError ? ErrorMap.Get(Integer(e.Extra), e.Extra) : e.Message) "`n`n")
             ConAttrib(7)
         }
         ; If script has stopped, listen for the next connection.
