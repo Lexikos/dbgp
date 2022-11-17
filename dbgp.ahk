@@ -514,17 +514,24 @@ _DBGp_WaitHandler_Wait(handler, session, ByRef response)
 {
     WasCritical := A_IsCritical
     Critical Off ; Must be Off to allow data to be received.
-    while !ObjLength(handler)
+    try
     {
-        if session.Socket = -1
-            return DBGp_E("Disconnected")
-        Sleep 10
+        Loop
+        {
+            Sleep -1
+            if ObjLength(handler)
+                break
+            if session.Socket = -1
+                return DBGp_E("Disconnected")
+            DllCall("WaitMessage")
+        }
+        response := ObjRemoveAt(handler, 1)
+        if RegExMatch(response, "<error\s+code=""\K.*?(?="")", DBGp_error_code)
+            return DBGp_E(DBGp_error_code)
+        return 0 ; Success.
     }
-    Critical % WasCritical
-    response := ObjRemoveAt(handler, 1)
-    if RegExMatch(response, "<error\s+code=""\K.*?(?="")", DBGp_error_code)
-        return DBGp_E(DBGp_error_code)
-    return 0 ; Success.
+    finally
+        Critical % WasCritical
 }
 
 DBGp_HandleResponsePacket(session, ByRef packet)
