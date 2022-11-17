@@ -1,8 +1,8 @@
 # dbgp
 
-[DBGp](http://xdebug.org/docs-dbgp.php) client scripts for AutoHotkey_L.
+[DBGp](http://xdebug.org/docs-dbgp.php) client scripts for AutoHotkey.
 
-These scripts have been written and tested for [AutoHotkey_L](https://github.com/Lexikos/AutoHotkey_L), but may also work with other (non-AutoHotkey) debugger engines.
+These scripts have been written and tested for [AutoHotkey](https://github.com/Lexikos/AutoHotkey_L), but may also work with other (non-AutoHotkey) debugger engines.
 
 ## dbgp.ahk
 
@@ -20,7 +20,7 @@ Demonstrates asynchronous commands and variable retrieval.
 
 This script is AutoHotkey-specific. It posts the `AHK_ATTACH_DEBUGGER` registered window message to all running scripts. Each script may respond by initiating a debugger connection. If there are successful connections, this test script queries and lists the variables of each connected script.
 
-**Note:** AutoHotkey_L v1.1.09+ allows any command other than run/step to be sent asynchronously, but the spec does not require this. If a command is unavailable because the debugger is not in a break state, error 5 is returned.
+**Note:** AutoHotkey v1.1.09+ allows any command other than run/step to be sent asynchronously, but the spec does not require this. If a command is unavailable because the debugger is not in a break state, error 5 is returned.
 
 
 ## dbgp_test.ahk
