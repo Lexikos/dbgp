@@ -85,8 +85,9 @@ DBGp_StartListening(localAddress="127.0.0.1", localPort=9000)
         && DllCall("ws2_32\listen", "ptr", s, "int", 4) = 0 ; no error
             return s
     ; An error occurred.
+    e := DllCall("ws2_32\WSAGetLastError")
     DllCall("ws2_32\closesocket", "ptr", s)
-    return DBGp_WSAE()
+    DBGp_WSAE(e)
 }
 
 ; Set the function to be called when a debugger connection is accepted.
