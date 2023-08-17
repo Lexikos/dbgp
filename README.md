@@ -31,3 +31,7 @@ When a connection is made, the client (this script) steps into the script being 
 
 Aside from basic usage, this test script hints at some possible uses for DBGp functions in a script. For example, this script could be extended to log variable values each time the debugger breaks, or at specific lines. 
 
+
+## dbgp_benchmark.ahk
+
+Implements a simple benchmark to measure overhead for simple commands, especially those SciTE4AutoHotkey uses when setting up a session.

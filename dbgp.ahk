@@ -94,8 +94,9 @@ DBGp_StartListening(localAddress:="127.0.0.1", localPort:=9000)
         && DllCall("ws2_32\listen", "ptr", s, "int", 4) = 0 ; no error
             return s
     ; An error occurred.
+    e := DllCall("ws2_32\WSAGetLastError")
     DllCall("ws2_32\closesocket", "ptr", s)
-    throw DBGp_WSAE()
+    throw DBGp_WSAE(e)
 }
 
 _DBGp_ValidFn(fn, n) {
@@ -493,16 +494,23 @@ _DBGp_WaitHandler_Wait(handler, session, &response)
 {
     WasCritical := A_IsCritical
     Critical false ; Must be Off to allow data to be received.
-    while !handler.HasOwnProp('r')
+    try
     {
-        if session.Socket = -1
-            throw DBGp_WSAE(session.CloseError)
-        Sleep 10
+        Loop
+        {
+            Sleep -1
+            if handler.HasOwnProp('r')
+                break
+            if session.Socket = -1
+                throw DBGp_WSAE(session.CloseError)
+            DllCall("WaitMessage")
+        }
+        response := handler.DeleteProp('r')
+        if RegExMatch(response, '<error\s+code="\K.*?(?=")', &DBGp_error_code)
+            throw DbgpError(DBGp_error_code.0, -2)
     }
-    Critical WasCritical
-    response := handler.DeleteProp('r')
-    if RegExMatch(response, '<error\s+code="\K.*?(?=")', &DBGp_error_code)
-        throw DbgpError(DBGp_error_code.0, -2)
+    finally
+        Critical WasCritical
 }
 
 DBGp_HandleResponsePacket(session, &packet)
