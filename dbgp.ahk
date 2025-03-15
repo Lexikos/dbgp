@@ -351,7 +351,8 @@ DBGp_HandleWindowMessage(hwnd, uMsg, wParam, lParam)
         if !(session := DBGp_FindSessionBySocket(wParam))
             return 0
         
-        DBGp_HandleIncomingData(session)
+        while DBGp_HandleIncomingData(session)
+            continue
     }
     else if (event = FD_CLOSE) ; Connection closed.
     {
@@ -454,16 +455,6 @@ DBGp_HandleIncomingData(session)
         DllCall("RtlMoveMemory", "ptr", ptr, "ptr", ptr + packetLen, "ptr", len)
         session.packetLen := ""
         
-        if len
-        {
-            ; Post a message so this function will be called again to
-            ; process the rest of the data.  Unlike loop/goto, this
-            ; method allows data to be received and processed while one
-            ; of the handlers called below is still running.
-            DllCall("PostMessage", "ptr", DBGp_hwnd(), "uint", 0x8000
-                    , "ptr", session.Socket, "ptr", 1)
-        }
-        
         ; Call the appropriate handler.
         if !RegExMatch(packet, "<\K\w+", packetType)
             DBGp_E("invalid packet")
@@ -475,7 +466,13 @@ DBGp_HandleIncomingData(session)
             DBGp_HandleInitPacket(session, packet)
         else
             DBGp_E("unknown packet type: " packetType)
+        
+        ; Signal caller to loop if there may be another packet.  Repeating execution
+        ; via PostMessage is no good for packets just prior to termination because a
+        ; FD_CLOSE notification would be dispatched before the queued FD_READs.
+        return len > 0
     }
+    return false
 }
 
 DBGp_CallHandler(handler, session="", ByRef packet="")
